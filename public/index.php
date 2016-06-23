@@ -171,6 +171,18 @@ call_user_func(function () {
             Command\RegisterNewBuilding::class => function (ContainerInterface $container) : RegisterNewBuildingHandler {
                 return new RegisterNewBuildingHandler($container->get(BuildingRepositoryInterface::class));
             },
+
+            Command\CheckUserIntoBuilding::class =>  function (ContainerInterface $container) : callable {
+                $repo = $container->get(BuildingRepositoryInterface::class);
+
+                return function (Command\CheckUserIntoBuilding $checkIn) use ($repo){
+
+                    $building = $repo->get(Uuid::fromString($checkIn->buildingId()));
+                    $building->checkInUser($checkIn->username());
+                    $repo->add($building);
+                };
+            },
+
             BuildingRepositoryInterface::class => function (ContainerInterface $container) : BuildingRepositoryInterface {
                 return new BuildingRepository(
                     new AggregateRepository(
@@ -211,11 +223,23 @@ call_user_func(function () {
     });
 
     $app->post('/checkin/{buildingId}', function (Request $request, Response $response) use ($sm) {
-
+        $commandBus = $sm->get(CommandBus::class);
+        try{
+            $commandBus->dispatch(Command\CheckUserIntoBuilding::fromUsernameAndBuildingId(
+                $request->getParsedBody()['username'],
+                $request->getAttribute('buildingId')
+            ));
+        }catch (\Throwable $e){
+            die($e);
+        }
     });
 
     $app->post('/checkout/{buildingId}', function (Request $request, Response $response) use ($sm) {
-
+//        $commandBus = $sm->get(CommandBus::class);
+//        $commandBus->dispatch(Command\CheckOutUserIntoBuilding::fromUsernameAndBuildingId(
+//            $request->getParsedBody()['usename'],
+//            $request->getAttribute('buildingId')
+//        ));
     });
 
     $app->run();
